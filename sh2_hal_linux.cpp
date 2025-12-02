@@ -64,38 +64,40 @@ static int hal_read(sh2_Hal_t *self, uint8_t *pBuffer, unsigned len, uint32_t *t
     linux_hal_t *ctx = reinterpret_cast<linux_hal_t*>(self);
     if (!ctx || ctx->fd < 0) return 0;
 
-    // Read the first 4 bytes (SHTP header contains 2-byte length + other fields)
-    std::cerr << "[HAL] Attempting read...\n";
+    // select SHTP register 0xF
+    uint8_t reg = 0xF;
+    if (write(ctx->fd, &reg, 1) != 1) {
+        std::perror("[HAL] i2c write (select 0xF)");
+        return 0;
+    }
+
+    // read 4-byte header
     ssize_t n = read(ctx->fd, pBuffer, 4);
-    if (n <= 0) {
-        std::cerr << "[HAL] read returned " << n << " errno=" << errno << "\n";
-        return 0;
-    }
     if (n != 4) {
-        // try to read remaining bytes of header (rare)
-        ssize_t rem = 4 - n;
-        ssize_t r2 = read(ctx->fd, pBuffer + n, rem);
-        if (r2 != rem) return 0;
+        return 0;   // no data available
     }
-    
 
-    uint16_t pktLen = (uint16_t)pBuffer[0] | ((uint16_t)pBuffer[1] << 8);
-    if (pktLen == 0 || pktLen > (int)len) {
+    uint16_t pktLen = pBuffer[0] | (pBuffer[1] << 8);
+    if (pktLen < 4 || pktLen > len) {
         return 0;
     }
 
-    int remaining = pktLen - 4;
+    // read the rest
+    ssize_t remaining = pktLen - 4;
     if (remaining > 0) {
         ssize_t r = read(ctx->fd, pBuffer + 4, remaining);
-        if (r != remaining) return 0;
+        if (r != remaining) {
+            return 0;
+        }
     }
 
     uint64_t now = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
-    if (t_us) *t_us = (uint32_t)(now & 0xFFFFFFFF);
+    if (t_us) *t_us = (uint32_t)now;
 
     return pktLen;
 }
+
 
 static int hal_write(sh2_Hal_t *self, uint8_t *pBuffer, unsigned len) {
     linux_hal_t *ctx = reinterpret_cast<linux_hal_t*>(self);
