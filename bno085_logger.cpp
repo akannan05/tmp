@@ -237,6 +237,10 @@ static void sensor_callback(void *cookie, sh2_SensorEvent_t *pEvent) {
     s.seq = value.sequence;
     s.calib_status = -1;
 
+    std::cerr << "CB: sensorId=0x" << std::hex << int(value.sensorId) << std::dec
+          << " seq=" << int(value.sequence) 
+          << " ts=" << value.timestamp << "\n";
+
     switch (value.sensorId) {
         case SH2_ACCELEROMETER:
             s.has_accel = true;
@@ -298,9 +302,8 @@ static void sensor_callback(void *cookie, sh2_SensorEvent_t *pEvent) {
     }
 
     // push (best-effort) to queue
-    if (!g_queue.push(std::move(s))) {
-        // queue overflow — drop sample (could increment a counter here)
-    }
+    bool pushed = g_queue.push(std::move(s));
+    if (!pushed) std::cerr << "CB: queue full – dropped sample\n";
 }
 
 /* async event callback — handle resets, etc. Keep simple */
@@ -372,9 +375,13 @@ int main(int argc, char **argv) {
     cfg.alwaysOnEnabled = false;
     cfg.sniffEnabled = false;
 
-    sh2_setSensorConfig(SH2_ROTATION_VECTOR, &cfg);
-    sh2_setSensorConfig(SH2_ACCELEROMETER, &cfg);
-    sh2_setSensorConfig(SH2_GYROSCOPE_CALIBRATED, &cfg);
+    rc = sh2_setSensorConfig(SH2_ROTATION_VECTOR, &cfg);
+    std::cerr << "SH2: setSensorConfig ROTATION_VECTOR -> " << rc << "\n";
+    rc = sh2_setSensorConfig(SH2_ACCELEROMETER, &cfg);
+    std::cerr << "SH2: setSensorConfig ACCEL -> " << rc << "\n";
+    rc = sh2_setSensorConfig(SH2_GYROSCOPE_CALIBRATED, &cfg);
+    std::cerr << "SH2: setSensorConfig GYRO -> " << rc << "\n";
+
 
     // start service & disk threads
     std::thread svc_thread(sh2_service_thread);
