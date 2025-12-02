@@ -65,8 +65,10 @@ static int hal_read(sh2_Hal_t *self, uint8_t *pBuffer, unsigned len, uint32_t *t
     if (!ctx || ctx->fd < 0) return 0;
 
     // Read the first 4 bytes (SHTP header contains 2-byte length + other fields)
+    std::cerr << "[HAL] Attempting read...\n";
     ssize_t n = read(ctx->fd, pBuffer, 4);
     if (n <= 0) {
+        std::cerr << "[HAL] read returned " << n << " errno=" << errno << "\n";
         return 0;
     }
     if (n != 4) {
@@ -75,6 +77,7 @@ static int hal_read(sh2_Hal_t *self, uint8_t *pBuffer, unsigned len, uint32_t *t
         ssize_t r2 = read(ctx->fd, pBuffer + n, rem);
         if (r2 != rem) return 0;
     }
+    
 
     uint16_t pktLen = (uint16_t)pBuffer[0] | ((uint16_t)pBuffer[1] << 8);
     if (pktLen == 0 || pktLen > (int)len) {
